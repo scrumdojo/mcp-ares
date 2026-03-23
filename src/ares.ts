@@ -144,6 +144,55 @@ export async function lookupVr(ico: string): Promise<VrResponse> {
   return (await response.json()) as VrResponse;
 }
 
+export interface RzpRecord {
+  ico: string;
+  obchodniJmeno: string;
+  zivnosti?: Array<{
+    predmetPodnikani: string;
+    druhZivnosti: string;
+    datumVzniku: string;
+    datumZaniku?: string;
+    oboryCinnosti?: Array<{ oborNazev: string }>;
+    provozovny?: Array<{
+      sidloProvozovny: { textovaAdresa: string };
+    }>;
+  }>;
+  zivnostiStav?: {
+    pocetAktivnich: number;
+    pocetZaniklych: number;
+    pocetPozastavenych: number;
+    pocetPrerusenych: number;
+    pocetCelkem: number;
+  };
+  angazovaneOsoby?: Array<{
+    jmeno: string;
+    prijmeni: string;
+    typAngazma: string;
+  }>;
+  primarniZaznam?: boolean;
+}
+
+export interface RzpResponse {
+  icoId: string;
+  zaznamy: RzpRecord[];
+}
+
+export async function lookupRzp(ico: string): Promise<RzpResponse> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty-rzp/${encodeURIComponent(ico)}`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`No trade register record for IČO ${ico}`);
+    }
+    throw new Error(`ARES API error: ${response.status} ${response.statusText}`);
+  }
+
+  return (await response.json()) as RzpResponse;
+}
+
 export async function lookupByIco(ico: string): Promise<AresSubject> {
   const url = `${ARES_BASE_URL}/ekonomicke-subjekty/${encodeURIComponent(ico)}`;
   const response = await fetch(url, {

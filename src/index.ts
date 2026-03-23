@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { lookupByIco, searchSubjects, lookupVr } from "./ares.js";
+import { lookupByIco, searchSubjects, lookupVr, lookupRzp } from "./ares.js";
 
 const server = new McpServer({
   name: "mcp-ares",
@@ -126,6 +126,62 @@ server.tool(
       if (activities.length > 0) {
         lines.push(`\n--- Business activities ---`);
         for (const a of activities) lines.push(`  - ${a.hodnota}`);
+      }
+
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_rzp_detail",
+  "Get trade license (Živnostenský rejstřík) details for a Czech company. Returns trade licenses, business premises, and responsible persons.",
+  {
+    ico: z.string().describe("8-digit IČO (company identification number)"),
+  },
+  async ({ ico }) => {
+    try {
+      const rzp = await lookupRzp(ico);
+      const record = rzp.zaznamy.find((r) => r.primarniZaznam) ?? rzp.zaznamy[0];
+      if (!record) throw new Error("No records found");
+
+      const lines: string[] = [];
+      lines.push(`Company: ${record.obchodniJmeno}`);
+      lines.push(`IČO: ${record.ico}`);
+
+      if (record.zivnostiStav) {
+        const s = record.zivnostiStav;
+        lines.push(`\nTrade licenses: ${s.pocetCelkem} total (${s.pocetAktivnich} active, ${s.pocetZaniklych} expired, ${s.pocetPozastavenych} suspended, ${s.pocetPrerusenych} interrupted)`);
+      }
+
+      for (const z of record.zivnosti ?? []) {
+        const status = z.datumZaniku ? " [EXPIRED]" : "";
+        const type = z.druhZivnosti === "L" ? "Free" : z.druhZivnosti === "R" ? "Regulated" : z.druhZivnosti === "V" ? "Licensed" : z.druhZivnosti;
+        lines.push(`\n--- Trade license (${type})${status} ---`);
+        lines.push(`  ${z.predmetPodnikani}`);
+        lines.push(`  Since: ${z.datumVzniku}`);
+        if (z.oboryCinnosti?.length) {
+          lines.push(`  Fields of activity:`);
+          for (const o of z.oboryCinnosti) lines.push(`    - ${o.oborNazev}`);
+        }
+        if (z.provozovny?.length) {
+          lines.push(`  Business premises:`);
+          for (const p of z.provozovny) lines.push(`    - ${p.sidloProvozovny.textovaAdresa}`);
+        }
+      }
+
+      if (record.angazovaneOsoby?.length) {
+        lines.push(`\n--- Responsible persons ---`);
+        for (const o of record.angazovaneOsoby) {
+          lines.push(`  ${o.jmeno} ${o.prijmeni} (${o.typAngazma})`);
+        }
       }
 
       return {
