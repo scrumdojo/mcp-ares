@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ares": {
+      "command": "node",
+      "args": ["/home/dev/workspace/mcp-ares/dist/index.js"]
+    }
+  }
+}
