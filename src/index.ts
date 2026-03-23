@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { lookupByIco, searchSubjects, lookupVr, lookupRzp } from "./ares.js";
+import { lookupByIco, searchSubjects, lookupVr, lookupRzp, lookupCeu } from "./ares.js";
 
 const server = new McpServer({
   name: "mcp-ares",
@@ -186,6 +186,37 @@ server.tool(
 
       return {
         content: [{ type: "text" as const, text: lines.join("\n") }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_insolvency_check",
+  "Check if a Czech company has any insolvency (bankruptcy) records in the CEU registry.",
+  {
+    ico: z.string().describe("8-digit IČO (company identification number)"),
+  },
+  async ({ ico }) => {
+    try {
+      const result = await lookupCeu(ico);
+      if (!result.found) {
+        return {
+          content: [{ type: "text" as const, text: `IČO ${ico}: No insolvency records found. The company has no entries in the Central Insolvency Register (CEU).` }],
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `⚠ IČO ${ico}: INSOLVENCY RECORD FOUND.\n\nRaw data:\n${JSON.stringify(result.raw, null, 2)}`,
+          },
+        ],
       };
     } catch (error) {
       return {

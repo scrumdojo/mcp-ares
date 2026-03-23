@@ -193,6 +193,26 @@ export async function lookupRzp(ico: string): Promise<RzpResponse> {
   return (await response.json()) as RzpResponse;
 }
 
+export async function lookupCeu(
+  ico: string
+): Promise<{ found: boolean; raw?: unknown }> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty-ceu/${encodeURIComponent(ico)}`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { found: false };
+    }
+    throw new Error(
+      `ARES API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return { found: true, raw: await response.json() };
+}
+
 export async function lookupByIco(ico: string): Promise<AresSubject> {
   const url = `${ARES_BASE_URL}/ekonomicke-subjekty/${encodeURIComponent(ico)}`;
   const response = await fetch(url, {
