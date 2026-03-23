@@ -228,6 +228,46 @@ server.tool(
 );
 
 server.tool(
+  "ares_bulk_lookup",
+  "Look up multiple Czech companies by IČO at once. Returns a summary table with name, address, status, and VAT number for each.",
+  {
+    ico_list: z.array(z.string()).describe("Array of IČO numbers to look up (max 20)"),
+  },
+  async ({ ico_list }) => {
+    if (ico_list.length > 20) {
+      return {
+        content: [{ type: "text" as const, text: "Error: Maximum 20 IČOs per request." }],
+        isError: true,
+      };
+    }
+
+    const results = await Promise.allSettled(
+      ico_list.map((ico) => lookupByIco(ico))
+    );
+
+    const lines: string[] = [];
+    for (let i = 0; i < ico_list.length; i++) {
+      const ico = ico_list[i];
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        const s = result.value;
+        const status = s.datumZaniku ? "DISSOLVED" : "ACTIVE";
+        lines.push(
+          `${s.ico} | ${status} | ${s.obchodniJmeno} | ${s.sidlo.textovaAdresa} | ${s.dic ?? "N/A"}`
+        );
+      } else {
+        lines.push(`${ico} | ERROR | ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      }
+    }
+
+    const header = "IČO | Status | Name | Address | DIČ\n" + "---|---|---|---|---\n";
+    return {
+      content: [{ type: "text" as const, text: header + lines.join("\n") }],
+    };
+  }
+);
+
+server.tool(
   "ares_search",
   "Search for Czech companies in the ARES registry by name, address, legal form, or NACE code. Returns a list of matching companies.",
   {
