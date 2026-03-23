@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { lookupByIco, searchSubjects } from "./ares.js";
+import { lookupByIco, searchSubjects, lookupVr } from "./ares.js";
 
 const server = new McpServer({
   name: "mcp-ares",
@@ -56,6 +56,84 @@ server.tool(
             text: `Error: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_vr_detail",
+  "Get commercial register (Veřejný rejstřík) details for a Czech company. Returns directors, shareholders, registered capital, business activities, and court file reference.",
+  {
+    ico: z.string().describe("8-digit IČO (company identification number)"),
+  },
+  async ({ ico }) => {
+    try {
+      const vr = await lookupVr(ico);
+      const record = vr.zaznamy.find((r) => r.primarniZaznam) ?? vr.zaznamy[0];
+      if (!record) throw new Error("No records found");
+
+      const lines: string[] = [];
+
+      const name = record.obchodniJmeno?.[0]?.hodnota;
+      if (name) lines.push(`Company: ${name}`);
+      lines.push(`IČO: ${ico}`);
+      if (record.stavSubjektu) lines.push(`Status: ${record.stavSubjektu}`);
+      if (record.datumZapisu) lines.push(`Registered: ${record.datumZapisu}`);
+
+      const sz = record.spisovaZnacka?.[0];
+      if (sz) lines.push(`Court file: ${sz.oddil} ${sz.vlozka}/${sz.soud}`);
+
+      const capital = record.zakladniKapital?.[0];
+      if (capital) {
+        const unit = capital.vklad.typObnos === "KORUNY" ? "CZK" : capital.vklad.typObnos;
+        lines.push(`Registered capital: ${capital.vklad.hodnota} ${unit}`);
+      }
+
+      for (const organ of record.statutarniOrgany ?? []) {
+        lines.push(`\n--- ${organ.nazevOrganu} ---`);
+        for (const clen of organ.clenoveOrganu ?? []) {
+          if (clen.datumVymazu) continue; // skip removed members
+          const person = clen.fyzickaOsoba
+            ? `${clen.fyzickaOsoba.jmeno} ${clen.fyzickaOsoba.prijmeni}`
+            : clen.pravnickaOsoba?.obchodniJmeno ?? "Unknown";
+          const role = clen.clenstvi?.funkce?.nazev ?? clen.typAngazma;
+          lines.push(`  ${person} — ${role} (since ${clen.datumZapisu})`);
+        }
+        if (organ.zpusobJednani?.[0]) {
+          lines.push(`  Manner of acting: ${organ.zpusobJednani[0].hodnota}`);
+        }
+      }
+
+      for (const group of record.spolecnici ?? []) {
+        lines.push(`\n--- Shareholders ---`);
+        for (const s of group.spolecnik ?? []) {
+          if (s.osoba.datumVymazu) continue;
+          const person = s.osoba.fyzickaOsoba
+            ? `${s.osoba.fyzickaOsoba.jmeno} ${s.osoba.fyzickaOsoba.prijmeni}`
+            : s.osoba.pravnickaOsoba?.obchodniJmeno ?? "Unknown";
+          const share = s.podil?.[0]?.velikostPodilu;
+          const shareStr = share ? ` (${share.hodnota}${share.typObnos === "PROCENTA" ? "%" : ""})` : "";
+          lines.push(`  ${person}${shareStr}`);
+        }
+      }
+
+      const activities = [
+        ...(record.cinnosti?.predmetPodnikani ?? []),
+        ...(record.cinnosti?.predmetCinnosti ?? []),
+      ];
+      if (activities.length > 0) {
+        lines.push(`\n--- Business activities ---`);
+        for (const a of activities) lines.push(`  - ${a.hodnota}`);
+      }
+
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }

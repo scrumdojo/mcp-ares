@@ -66,6 +66,84 @@ export async function searchSubjects(
   return (await response.json()) as AresSearchResult;
 }
 
+export interface VrRecord {
+  rejstrik: string;
+  spisovaZnacka?: Array<{
+    soud: string;
+    oddil: string;
+    vlozka: number;
+    datumZapisu: string;
+  }>;
+  obchodniJmeno?: Array<{ hodnota: string; datumZapisu: string }>;
+  zakladniKapital?: Array<{
+    vklad: { typObnos: string; hodnota: string };
+    datumZapisu: string;
+  }>;
+  statutarniOrgany?: Array<{
+    nazevOrganu: string;
+    clenoveOrganu?: Array<{
+      typAngazma: string;
+      clenstvi?: { funkce?: { nazev: string } };
+      fyzickaOsoba?: {
+        jmeno: string;
+        prijmeni: string;
+        datumNarozeni?: string;
+        adresa?: { textovaAdresa: string };
+      };
+      pravnickaOsoba?: {
+        obchodniJmeno: string;
+        ico?: string;
+      };
+      datumZapisu: string;
+      datumVymazu?: string;
+    }>;
+    zpusobJednani?: Array<{ hodnota: string }>;
+  }>;
+  spolecnici?: Array<{
+    spolecnik?: Array<{
+      podil?: Array<{
+        vklad: { hodnota: string; typObnos: string };
+        velikostPodilu?: { hodnota: string; typObnos: string };
+        splaceni?: { hodnota: string; typObnos: string };
+      }>;
+      osoba: {
+        fyzickaOsoba?: { jmeno: string; prijmeni: string };
+        pravnickaOsoba?: { obchodniJmeno: string; ico?: string };
+        datumZapisu: string;
+        datumVymazu?: string;
+      };
+    }>;
+  }>;
+  cinnosti?: {
+    predmetPodnikani?: Array<{ hodnota: string }>;
+    predmetCinnosti?: Array<{ hodnota: string }>;
+  };
+  stavSubjektu?: string;
+  datumZapisu?: string;
+  primarniZaznam?: boolean;
+}
+
+export interface VrResponse {
+  icoId: string;
+  zaznamy: VrRecord[];
+}
+
+export async function lookupVr(ico: string): Promise<VrResponse> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty-vr/${encodeURIComponent(ico)}`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`No commercial register record for IČO ${ico}`);
+    }
+    throw new Error(`ARES API error: ${response.status} ${response.statusText}`);
+  }
+
+  return (await response.json()) as VrResponse;
+}
+
 export async function lookupByIco(ico: string): Promise<AresSubject> {
   const url = `${ARES_BASE_URL}/ekonomicke-subjekty/${encodeURIComponent(ico)}`;
   const response = await fetch(url, {
