@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { lookupByIco } from "./ares.js";
+import { lookupByIco, searchSubjects } from "./ares.js";
 
 const server = new McpServer({
   name: "mcp-ares",
@@ -56,6 +56,51 @@ server.tool(
             text: `Error: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_search",
+  "Search for Czech companies in the ARES registry by name, address, legal form, or NACE code. Returns a list of matching companies.",
+  {
+    name: z.string().optional().describe("Company name (partial match)"),
+    ico: z.array(z.string()).optional().describe("Array of IČO numbers to search"),
+    legal_form: z.array(z.string()).optional().describe("Legal form codes (e.g. '112' for s.r.o., '121' for a.s.)"),
+    nace: z.array(z.string()).optional().describe("CZ-NACE activity codes"),
+    start: z.number().optional().describe("Pagination offset (default 0)"),
+    limit: z.number().optional().describe("Number of results (default 10, max 100)"),
+  },
+  async ({ name, ico, legal_form, nace, start, limit }) => {
+    try {
+      const result = await searchSubjects({
+        obchodniJmeno: name,
+        ico,
+        pravniForma: legal_form,
+        czNace: nace,
+        start: start ?? 0,
+        pocet: Math.min(limit ?? 10, 100),
+      });
+
+      if (result.pocetCelkem === 0) {
+        return {
+          content: [{ type: "text" as const, text: "No companies found matching the search criteria." }],
+        };
+      }
+
+      const header = `Found ${result.pocetCelkem} companies (showing ${result.ekonomickeSubjekty.length}):\n`;
+      const entries = result.ekonomickeSubjekty.map((s) =>
+        `- ${s.obchodniJmeno} (IČO: ${s.ico}) — ${s.sidlo.textovaAdresa}`
+      );
+
+      return {
+        content: [{ type: "text" as const, text: header + entries.join("\n") }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }

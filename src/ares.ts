@@ -22,6 +22,50 @@ export interface AresSubject {
   czNace2008?: string[];
 }
 
+export interface AresSearchResult {
+  pocetCelkem: number;
+  ekonomickeSubjekty: AresSubject[];
+}
+
+export interface AresSearchFilter {
+  obchodniJmeno?: string;
+  ico?: string[];
+  sidlo?: {
+    kodObce?: number;
+    textovaAdresa?: string;
+  };
+  pravniForma?: string[];
+  czNace?: string[];
+  start?: number;
+  pocet?: number;
+}
+
+export async function searchSubjects(
+  filter: AresSearchFilter
+): Promise<AresSearchResult> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty/vyhledat`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      ...filter,
+      start: filter.start ?? 0,
+      pocet: filter.pocet ?? 10,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `ARES API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as AresSearchResult;
+}
+
 export async function lookupByIco(ico: string): Promise<AresSubject> {
   const url = `${ARES_BASE_URL}/ekonomicke-subjekty/${encodeURIComponent(ico)}`;
   const response = await fetch(url, {
