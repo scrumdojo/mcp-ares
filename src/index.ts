@@ -108,12 +108,12 @@ function createServer(): McpServer {
         for (const organ of record.statutarniOrgany ?? []) {
           lines.push(`\n--- ${organ.nazevOrganu} ---`);
           for (const clen of organ.clenoveOrganu ?? []) {
-            if (clen.datumVymazu) continue; // skip removed members
             const person = clen.fyzickaOsoba
               ? `${clen.fyzickaOsoba.jmeno} ${clen.fyzickaOsoba.prijmeni}`
               : clen.pravnickaOsoba?.obchodniJmeno ?? "Unknown";
             const role = clen.clenstvi?.funkce?.nazev ?? clen.typAngazma;
-            lines.push(`  ${person} — ${role} (since ${clen.datumZapisu})`);
+            const removed = clen.datumVymazu ? ` [removed ${clen.datumVymazu}]` : "";
+            lines.push(`  ${person} — ${role} (since ${clen.datumZapisu})${removed}`);
           }
           if (organ.zpusobJednani?.[0]) {
             lines.push(`  Manner of acting: ${organ.zpusobJednani[0].hodnota}`);
@@ -123,13 +123,13 @@ function createServer(): McpServer {
         for (const group of record.spolecnici ?? []) {
           lines.push(`\n--- Shareholders ---`);
           for (const s of group.spolecnik ?? []) {
-            if (s.osoba.datumVymazu) continue;
             const person = s.osoba.fyzickaOsoba
               ? `${s.osoba.fyzickaOsoba.jmeno} ${s.osoba.fyzickaOsoba.prijmeni}`
               : s.osoba.pravnickaOsoba?.obchodniJmeno ?? "Unknown";
             const share = s.podil?.[0]?.velikostPodilu;
             const shareStr = share ? ` (${share.hodnota}${share.typObnos === "PROCENTA" ? "%" : ""})` : "";
-            lines.push(`  ${person}${shareStr}`);
+            const removed = s.osoba.datumVymazu ? ` [removed ${s.osoba.datumVymazu}]` : "";
+            lines.push(`  ${person}${shareStr}${removed}`);
           }
         }
 
