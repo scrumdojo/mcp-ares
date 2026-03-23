@@ -213,6 +213,71 @@ export async function lookupCeu(
   return { found: true, raw: await response.json() };
 }
 
+export interface NotificationBatch {
+  cisloDavky: number;
+  datovyZdroj: string;
+  datumUvolneniDavky: string;
+  pocetZmen: number;
+}
+
+export interface NotificationSearchResult {
+  notifikacniDavky: NotificationBatch[];
+}
+
+export async function searchNotifications(
+  start = 0,
+  count = 10
+): Promise<NotificationSearchResult> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty-notifikace/vyhledat`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ start, pocet: count }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `ARES API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as NotificationSearchResult;
+}
+
+export interface NotificationEntry {
+  icoId: string;
+  typZmeny?: string;
+}
+
+export interface NotificationBatchDetail {
+  cisloDavky: number;
+  datovyZdroj: string;
+  datumUvolneniDavky: string;
+  pocetZmen: number;
+  seznamNotifikaci?: NotificationEntry[];
+}
+
+export async function getNotificationBatch(
+  source: string,
+  batchNumber: number
+): Promise<NotificationBatchDetail> {
+  const url = `${ARES_BASE_URL}/ekonomicke-subjekty-notifikace/datovy-zdroj/${encodeURIComponent(source)}/cislo-davky/${encodeURIComponent(String(batchNumber))}`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `ARES API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as NotificationBatchDetail;
+}
+
 export async function lookupByIco(ico: string): Promise<AresSubject> {
   const url = `${ARES_BASE_URL}/ekonomicke-subjekty/${encodeURIComponent(ico)}`;
   const response = await fetch(url, {

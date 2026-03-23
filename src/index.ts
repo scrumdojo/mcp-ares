@@ -3,7 +3,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { lookupByIco, searchSubjects, lookupVr, lookupRzp, lookupCeu } from "./ares.js";
+import {
+  lookupByIco,
+  searchSubjects,
+  lookupVr,
+  lookupRzp,
+  lookupCeu,
+  searchNotifications,
+  getNotificationBatch,
+} from "./ares.js";
 
 const server = new McpServer({
   name: "mcp-ares",
@@ -302,6 +310,63 @@ server.tool(
 
       return {
         content: [{ type: "text" as const, text: header + entries.join("\n") }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_changes_list",
+  "List recent ARES notification batches (change feed). Each batch contains a set of company changes. Use ares_changes_detail to inspect a specific batch.",
+  {
+    start: z.number().optional().describe("Pagination offset (default 0)"),
+    limit: z.number().optional().describe("Number of batches to return (default 10)"),
+  },
+  async ({ start, limit }) => {
+    try {
+      const result = await searchNotifications(start ?? 0, limit ?? 10);
+      const lines = result.notifikacniDavky.map(
+        (b) =>
+          `Batch #${b.cisloDavky} | ${b.datumUvolneniDavky} | source: ${b.datovyZdroj} | ${b.pocetZmen} changes`
+      );
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") || "No notification batches found." }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "ares_changes_detail",
+  "Get details of a specific ARES notification batch — lists the IČOs of companies that changed.",
+  {
+    source: z.string().optional().describe("Data source (default 'ares')"),
+    batch_number: z.number().describe("Batch number from ares_changes_list"),
+  },
+  async ({ source, batch_number }) => {
+    try {
+      const result = await getNotificationBatch(source ?? "ares", batch_number);
+      const entries = result.seznamNotifikaci ?? [];
+      if (entries.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: "No changes in this batch." }],
+        };
+      }
+      const lines = entries.map(
+        (c) => `${c.icoId}${c.typZmeny ? ` (${c.typZmeny})` : ""}`
+      );
+      return {
+        content: [{ type: "text" as const, text: `Batch #${result.cisloDavky} (${result.datumUvolneniDavky}) — ${entries.length} changes:\n${lines.join("\n")}` }],
       };
     } catch (error) {
       return {
