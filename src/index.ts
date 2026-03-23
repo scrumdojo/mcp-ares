@@ -78,7 +78,7 @@ function createServer(): McpServer {
 
   server.tool(
     "ares_vr_detail",
-    "Get commercial register (Veřejný rejstřík) details for a Czech company. Returns directors, shareholders, registered capital, business activities, and court file reference.",
+    "Get commercial register (Veřejný rejstřík) details for a Czech company. Returns the FULL HISTORY of directors (jednatelé), board members, shareholders/owners (společníci), registered capital, business activities, and court file reference. Includes both current and former members — former entries are marked with [removed YYYY-MM-DD]. Use this to find who was jednatel or owner in the past.",
     {
       ico: z.string().describe("8-digit IČO (company identification number)"),
     },
